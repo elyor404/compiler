@@ -8,8 +8,14 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace CSharp.Compiler.Sdk;
 
-public class CSharpCompiler() : ICsharpCompiler
+public class CSharpCompiler : ICsharpCompiler
 {
+    private readonly IAssemblyRunner _runner;
+
+    public CSharpCompiler(IAssemblyRunner runner)
+    {
+        _runner = runner;
+    }
     public ValueTask<CompilationResult> CanCompileAsync(string code, CancellationToken cancellationToken = default)
     {
         var assemblyName = $"InMemoryAssembly_{Guid.NewGuid().ToString("N").Replace("-", "")}";
@@ -75,7 +81,7 @@ public class CSharpCompiler() : ICsharpCompiler
             }, string.Empty);
         }
 
-        var output = await RunAssembly(compileResult.AssemblyLocation, [input]);
+        var output = await _runner.RunAssemblyAsync(compileResult.AssemblyLocation, [input]);
         return (new CompilationResult { IsSuccess = true }, output.FirstOrDefault() ?? "");
     }
 
@@ -91,9 +97,25 @@ public class CSharpCompiler() : ICsharpCompiler
             }, new List<string>());
         }
 
-        var outputs = await RunAssembly(compileResult.AssemblyLocation, inputs);
+        var outputs = await  _runner.RunAssemblyAsync(compileResult.AssemblyLocation, inputs);
         return (new CompilationResult { IsSuccess = true }, outputs);
     }
+    public async ValueTask<(CompilationResult Compilation, string Output)> ExecuteAsync(string code, CancellationToken cancellationToken = default)
+    {
+        var compileResult = await CompileAsync(code, cancellationToken);
+        if (!compileResult.IsSuccess)
+        {
+            return (new CompilationResult
+            {
+                IsSuccess = false,
+                Errors = compileResult.Errors
+            }, string.Empty);
+        }
+
+        var outputs = await _runner.RunAssemblyAsync(compileResult.AssemblyLocation, new List<string>());
+        return (new CompilationResult { IsSuccess = true }, outputs.FirstOrDefault() ?? "");
+    }
+
 
     private static CSharpCompilation CreateCompilation(string assemblyName, string code)
     {
@@ -111,68 +133,4 @@ public class CSharpCompiler() : ICsharpCompiler
             ],
             options: new CSharpCompilationOptions(OutputKind.ConsoleApplication));
     }
-
-    private static async Task<List<string>> RunAssembly(string assemblyLocation, List<string> inputs)
-    {
-        var outputs = new List<string>();
-
-        var folder = Path.GetDirectoryName(assemblyLocation);
-        var fileName = Path.GetFileNameWithoutExtension(assemblyLocation);
-
-        await File.WriteAllTextAsync(Path.Combine(folder!, $"{fileName}.runtimeconfig.json"), RuntimeConfig);
-
-        foreach (var input in inputs)
-        {
-            var psi = new ProcessStartInfo("dotnet", assemblyLocation)
-            {
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var proc = Process.Start(psi)!;
-
-            if (!string.IsNullOrEmpty(input))
-            {
-                proc.StandardInput.WriteLine(input);
-                proc.StandardInput.Close();
-            }
-
-            string output = proc.StandardOutput.ReadToEnd();
-            string error = proc.StandardError.ReadToEnd();
-
-            proc.WaitForExit();
-
-            if (!string.IsNullOrWhiteSpace(error))
-                outputs.Add(error.Trim());
-            else
-                outputs.Add(output.Trim());
-        }
-
-        try
-        {
-            File.Delete(assemblyLocation);
-        }
-        catch
-        {
-            // ignore if file is still locked
-        }
-
-        return outputs;
-    }
-
-    static string RuntimeConfig = """
-    {
-      "runtimeOptions": {
-        "tfm": "net8.0",
-        "framework": {
-          "name": "Microsoft.NETCore.App",
-          "version": "8.0.0"
-        }
-      }
-    }
-    """;
-
 }
