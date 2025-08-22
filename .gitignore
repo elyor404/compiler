@@ -1,0 +1,40 @@
+# Build results
+bin/
+obj/
+out/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio
+.vs/
+
+# DotNet artifacts
+*.dll
+*.exe
+*.log
+*.cache
+*.pdb
+
+# NuGet
+*.nupkg
+.nuget/
+packages/
+
+# Rider / JetBrains
+.idea/
+*.iml
+
+# Mac / Linux
+.DS_Store
+*.swp
+
+# Logs
+*.log
+
+# Others
+launchSettings.json
