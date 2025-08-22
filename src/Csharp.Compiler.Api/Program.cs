@@ -50,4 +50,16 @@ app.MapPost("/execute-multiple-inputs", async ([FromBody] ExecuteMultipleInputsD
     });
 });
 
+app.MapPost("/execute", async ([FromBody] CompileDto dto) =>
+{
+    var (compilation, output) = await compiler.ExecuteAsync(dto.Code!);
+
+    return Results.Ok(new
+    {
+        compilation.IsSuccess,
+        compilation.Errors,
+        Output = output
+    });
+});
+
 app.Run();

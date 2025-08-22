@@ -121,6 +121,33 @@ public class CSharpCompiler() : ICsharpCompiler
 
         await File.WriteAllTextAsync(Path.Combine(folder!, $"{fileName}.runtimeconfig.json"), RuntimeConfig);
 
+        if (inputs == null || inputs.Count == 0)
+        {
+            var psi = new ProcessStartInfo("dotnet", assemblyLocation)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var proc = Process.Start(psi)!;
+
+            string output = proc.StandardOutput.ReadToEnd();
+            string error = proc.StandardError.ReadToEnd();
+
+            proc.WaitForExit();
+
+            if (!string.IsNullOrWhiteSpace(error))
+                outputs.Add(error.Trim());
+            else
+                outputs.Add(output.Trim());
+
+            try { File.Delete(assemblyLocation); } catch { }
+
+            return outputs;
+        }
+
         foreach (var input in inputs)
         {
             var psi = new ProcessStartInfo("dotnet", assemblyLocation)
@@ -151,14 +178,7 @@ public class CSharpCompiler() : ICsharpCompiler
                 outputs.Add(output.Trim());
         }
 
-        try
-        {
-            File.Delete(assemblyLocation);
-        }
-        catch
-        {
-            // ignore if file is still locked
-        }
+        try { File.Delete(assemblyLocation); } catch { }
 
         return outputs;
     }
@@ -175,4 +195,19 @@ public class CSharpCompiler() : ICsharpCompiler
     }
     """;
 
+    public async ValueTask<(CompilationResult Compilation, string Output)> ExecuteAsync(string code, CancellationToken cancellationToken = default)
+    {
+        var compileResult = await CompileAsync(code, cancellationToken);
+        if (!compileResult.IsSuccess)
+        {
+            return (new CompilationResult
+            {
+                IsSuccess = false,
+                Errors = compileResult.Errors
+            }, string.Empty);
+        }
+
+        var outputs = await RunAssembly(compileResult.AssemblyLocation, new List<string>());
+        return (new CompilationResult { IsSuccess = true }, outputs.FirstOrDefault() ?? "");
+    }
 }
