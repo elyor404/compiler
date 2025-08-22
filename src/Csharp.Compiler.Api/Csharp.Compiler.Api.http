@@ -4,7 +4,7 @@ POST {{Host}}/execute
 Content-Type: application/json
 
 {
-  "code": "using System; class Program { static void Main() { int a=0,b=1; for(int i=0;i<10;i++){ Console.Write(a+\" \"); int temp=a; a=b; b=temp+b; } } }"
+  "code": "using System; class Program { static void Main() { Console.WriteLine(DateTime.Now); } }"
 }
 
 ###
