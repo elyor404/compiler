@@ -1,7 +1,4 @@
-using System.Reflection;
-
 namespace CSharp.Compiler.Sdk;
-
 public class CompilationResultWithAssembly
 {
      public bool IsSuccess { get; set; }

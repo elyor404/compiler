@@ -1,4 +1,4 @@
-using CSharp.Compiler.Sdk;
+using CSharp.Compiler.Sdk.Services;
 using Microsoft.AspNetCore.Mvc;
 using CSharp.Compiler.Api.Dto;
 
@@ -41,6 +41,18 @@ app.MapPost("/execute-single-input", async ([FromBody] ExecuteSingleInputDto dto
 app.MapPost("/execute-multiple-inputs", async ([FromBody] ExecuteMultipleInputsDto dto) =>
 {
     var (compilation, outputs) = await compiler.ExecuteAsync(dto.Code, dto.Inputs);
+
+    return Results.Ok(new
+    {
+        compilation.IsSuccess,
+        compilation.Errors,
+        Outputs = outputs
+    });
+});
+
+app.MapPost("/execute-without-input", async ([FromBody] CompileDto dto) =>
+{
+    var (compilation, outputs) = await compiler.ExecuteAsync(dto.Code);
 
     return Results.Ok(new
     {

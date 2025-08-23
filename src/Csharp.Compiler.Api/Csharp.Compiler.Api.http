@@ -1,11 +1,17 @@
-@Host = https://localhost:5001
+@Host = http://localhost:5278
 
 POST {{Host}}/execute-single-input
 Content-Type: application/json
 
 {
     "code": "using System; Console.WriteLine($\"{int.Parse(Console.ReadLine()) + int.Parse(Console.ReadLine())}\");",
-    "input": "15\n5"
+    "input": "10\n8"
 }
-
 ###
+
+POST {{Host}}/execute-without-input
+Content-Type: application/json
+
+{
+    "code": "using System; Console.WriteLine(\"Salom\");"
+}
