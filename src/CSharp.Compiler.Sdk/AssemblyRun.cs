@@ -26,7 +26,6 @@ public class AssemblyRunner : IAssemblyRunner
             Path.Combine(folder!, $"{fileName}.runtimeconfig.json"), 
             RuntimeConfig);
 
-        // agar input bo'sh bo'lsa - bitta run qilamiz
         if (inputs == null || inputs.Count == 0)
         {
             var psi = new ProcessStartInfo("dotnet", assemblyLocation)
@@ -49,7 +48,6 @@ public class AssemblyRunner : IAssemblyRunner
         }
         else
         {
-            // har bir input uchun alohida run
             foreach (var input in inputs)
             {
                 var psi = new ProcessStartInfo("dotnet", assemblyLocation)
