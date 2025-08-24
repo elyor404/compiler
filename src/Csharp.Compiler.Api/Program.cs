@@ -7,6 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();  
 
+builder.Services.AddSingleton<CSharpCompiler>();
+
 var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
@@ -15,7 +17,7 @@ if (app.Environment.IsDevelopment())
 }
 var compiler = new CSharpCompiler();
 
-app.MapPost("/compile", async ([FromBody] CompileDto dto) =>
+app.MapPost("/compile", async ([FromBody] CompileDto dto, CSharpCompiler compiler) =>
 {
     var result = await compiler.CompileAsync(dto.Code!);
 
@@ -26,7 +28,7 @@ app.MapPost("/compile", async ([FromBody] CompileDto dto) =>
     });
 });
 
-app.MapPost("/execute-single-input", async ([FromBody] ExecuteSingleInputDto dto) =>
+app.MapPost("/execute-single-input", async ([FromBody] ExecuteSingleInputDto dto, CSharpCompiler compiler) =>
 {
     var (compilation, output) = await compiler.ExecuteAsync(dto.Code, dto.Input);
 
@@ -38,7 +40,7 @@ app.MapPost("/execute-single-input", async ([FromBody] ExecuteSingleInputDto dto
     });
 });
 
-app.MapPost("/execute-multiple-inputs", async ([FromBody] ExecuteMultipleInputsDto dto) =>
+app.MapPost("/execute-multiple-inputs", async ([FromBody] ExecuteMultipleInputsDto dto, CSharpCompiler compiler) =>
 {
     var (compilation, outputs) = await compiler.ExecuteAsync(dto.Code, dto.Inputs);
 
@@ -50,7 +52,7 @@ app.MapPost("/execute-multiple-inputs", async ([FromBody] ExecuteMultipleInputsD
     });
 });
 
-app.MapPost("/execute", async ([FromBody] CompileDto dto) =>
+app.MapPost("/execute", async ([FromBody] CompileDto dto, CSharpCompiler compiler) =>
 {
     var (compilation, output) = await compiler.ExecuteAsync(dto.Code!);
 
