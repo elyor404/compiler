@@ -1,5 +1,3 @@
-using System.Reflection;
-
 namespace CSharp.Compiler.Sdk;
 
 public class CompilationResultWithAssembly
