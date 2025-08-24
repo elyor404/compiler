@@ -1,106 +1,49 @@
+using System.Diagnostics;
+using System.Reflection;
+using CSharp.Compiler.Sdk.Models;
+using CSharp.Compiler.Sdk.Services.Abstractions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.Extensions.Logging;
 
 namespace CSharp.Compiler.Sdk.Services;
 
-public class CSharpCompiler() : ICsharpCompiler
+public class CSharpCompiler(ILogger<CSharpCompiler> logger) : ICSharpCompiler
 {
-    public string AssemblyName { get; } = $"InMemoryAssembly_{Guid.NewGuid().ToString("N").Replace("-", "")}";
-    public ValueTask<CompilationResult> CanCompileAsync(string code, CancellationToken cancellationToken = default)
+    private readonly string executingAssemblyName = Assembly.GetExecutingAssembly().GetName().Name!;
+    private readonly string tempAssemblyName = $"TemporaryAssemply_{Path.GetRandomFileName()[..7]}.dll";
+    private string tempAssemblyPath
     {
-        var compilation = CompilationService.CreateCompilation(AssemblyName, code);
-
-        using var ms = new MemoryStream();
-        var result = compilation.Emit(ms, cancellationToken: cancellationToken);
-
-        if (result.Success is false)
+        get
         {
-            var errors = result.Diagnostics
-                .Where(d => d.Severity == DiagnosticSeverity.Error)
-                .Select(d => d.ToString())
-                .ToList();
+            var path = Path.Combine(Path.GetTempPath(), executingAssemblyName);
+            if (Directory.Exists(path) is false)
+                Directory.CreateDirectory(path);
 
-            return ValueTask.FromResult(new CompilationResult { IsSuccess = false, Errors = errors });
+            return Path.Combine(path, tempAssemblyName);
         }
-
-        return ValueTask.FromResult(new CompilationResult { IsSuccess = true });
     }
 
-    public ValueTask<CompilationResultWithAssembly> CompileAsync(string code, CancellationToken cancellationToken = default)
+    public ValueTask<CompilationResult> CompileAsync(string code, CancellationToken cancellationToken = default)
     {
-        var compilation = CompilationService.CreateCompilation(AssemblyName, code);
+        var stopwatch = Stopwatch.StartNew();
+        logger.LogDebug("C# code compilation started for {assemblyPath}", tempAssemblyPath);
 
-        var tempPath = Path.Combine(Path.GetTempPath(), $"{AssemblyName}.dll");
-        var result = compilation.Emit(tempPath, cancellationToken: cancellationToken);
+        var compilation = CSharpCompilationHelper.CreateCompilation(code, tempAssemblyName);
+        var result = compilation.Emit(tempAssemblyPath, cancellationToken: cancellationToken);
 
-        if (result.Success is false)
+        logger.LogDebug("Compilation finished for {assemblyPath} in {duration}ms.", tempAssemblyPath, stopwatch.ElapsedMilliseconds);
+
+        return ValueTask.FromResult(new CompilationResult
         {
-            var errors = result.Diagnostics
+            Errors = result.Diagnostics
                 .Where(d => d.Severity == DiagnosticSeverity.Error)
-                .Select(d => d.ToString())
-                .ToList();
-
-            return ValueTask.FromResult(new CompilationResultWithAssembly
-            {
-                IsSuccess = false,
-                Errors = errors,
-                AssemblyLocation = tempPath
-            });
-        }
-
-        return ValueTask.FromResult(new CompilationResultWithAssembly
-        {
-            IsSuccess = true,
-            Errors = null,
-            AssemblyLocation = tempPath
+                .Select(d => d.ToString()),
+            Warnings = result.Diagnostics
+                .Where(d => d.Severity == DiagnosticSeverity.Warning)
+                .Select(d => d.ToString()),
+            IsSuccess = result.Success,
+            AssemblyLocation = tempAssemblyPath
         });
-
-    }
-
-    public async ValueTask<(CompilationResult Compilation, string Output)> ExecuteAsync(string code, string input, CancellationToken cancellationToken = default)
-    {
-        var compileResult = await CompileAsync(code, cancellationToken);
-        if (compileResult.IsSuccess is false)
-        {
-            return (new CompilationResult
-            {
-                IsSuccess = false,
-                Errors = compileResult.Errors
-            }, string.Empty);
-        }
-
-        var output = await AssemblyRunner.RunAssembly(compileResult.AssemblyLocation, [input]);
-        return (new CompilationResult { IsSuccess = true }, output.FirstOrDefault() ?? "");
-    }
-
-    public async ValueTask<(CompilationResult Compilation, List<string> Outputs)> ExecuteAsync(string code, List<string?> inputs, CancellationToken cancellationToken = default)
-    {
-        var compileResult = await CompileAsync(code, cancellationToken);
-        if (compileResult.IsSuccess is false)
-        {
-            return (new CompilationResult
-            {
-                IsSuccess = false,
-                Errors = compileResult.Errors
-            }, new List<string>());
-        }
-
-        var outputs = await AssemblyRunner.RunAssembly(compileResult.AssemblyLocation, inputs);
-        return (new CompilationResult { IsSuccess = true }, outputs);
-    }
-
-    public async ValueTask<(CompilationResult Compilation, List<string> Outputs)> ExecuteAsync(string code, CancellationToken cancellationToken = default)
-    {
-        var compileResult = await CompileAsync(code, cancellationToken);
-        if (compileResult.IsSuccess is false)
-            return (new CompilationResult
-            {
-                IsSuccess = false,
-                Errors = compileResult.Errors
-            }, new List<string>());
-
-        var outputs = await AssemblyRunner.RunAssembly(compileResult.AssemblyLocation, [null]);
-        return (new CompilationResult { IsSuccess = true }, outputs);
-
     }
 }
