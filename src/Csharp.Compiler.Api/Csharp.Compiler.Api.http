@@ -1,14 +1,21 @@
-@Host = https://localhost:5001
+@Host = http://localhost:5278
 
 POST {{Host}}/execute-single-input
 Content-Type: application/json
 
 {
     "code": "using System; Console.WriteLine($\"{int.Parse(Console.ReadLine()) + int.Parse(Console.ReadLine())}\");",
-    "input": "10\n8"
+    "input": "10\n1"
 }
 ###
+# POST {{Host}}/execute-multiple-inputs
+# Content-Type: application/json
 
+# {
+#     "code": "using System; Console.WriteLine($\"{int.Parse(Console.ReadLine()) + int.Parse(Console.ReadLine())}\"); Console.WriteLine(int.Parse(Console.ReadLine()));",
+#     "inputs": ["10\n20","50\n"]
+# }
+###
 POST {{Host}}/execute-without-input
 Content-Type: application/json
 
