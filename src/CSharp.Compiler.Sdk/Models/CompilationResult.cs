@@ -1,6 +1,6 @@
 namespace CSharp.Compiler.Sdk.Models;
 
-public class CompilationResult
+public record CompilationResult
 {
     public bool IsSuccess { get; set; }
     public IEnumerable<string>? Errors { get; set; }

@@ -7,33 +7,33 @@ namespace CSharp.Compiler.Sdk.Services;
 
 public class CSharpRunner(ILogger<ICSharpRunner> logger, ICSharpCompiler compiler) : ICSharpRunner
 {
-    public async ValueTask<(CompilationResult Compilation, List<string>? Outputs)> ExecuteAsync(string code, List<string>? inputs = null, CancellationToken cancellationToken = default)
+    public async ValueTask<ExecutionResult> ExecuteAsync(string code, List<string>? inputs = null, CancellationToken cancellationToken = default)
         => await ExecuteAsync(
             compilation: await compiler.CompileAsync(code, cancellationToken),
             inputs: inputs,
             cancellationToken: cancellationToken);
 
-    // TODO: this method should account for runtime errors as well
-    // we should create a return model: ExecutionResult
-    // Compilation: CompilationResult
-    // IsSucccess: bool
-    // IsRuntimeError: bool
-    // RuntimeErrorType: ERuntimeErrorType [Runtime, MemoryLimit, CpuLimit]
-    // Code: int
-    // Outputs: IEnumerable<string>?
-    public async ValueTask<(CompilationResult Compilation, List<string>? Outputs)> ExecuteAsync(CompilationResult compilation, List<string>? inputs = null, CancellationToken cancellationToken = default)
+    public async ValueTask<ExecutionResult> ExecuteAsync(CompilationResult compilation, List<string>? inputs = null, CancellationToken cancellationToken = default)
     {
         if (compilation.IsSuccess is false)
         {
             logger.LogDebug("Compilation failed, aborting execution for assembly {assemblyPath}.", compilation.AssemblyLocation);
-            return (compilation, []);
+            return new ExecutionResult
+            {
+                Compilation = compilation,
+                IsSuccess = false,
+                IsRuntimeError = false,
+                RuntimeErrorType = null,
+                Code = -1,
+                Outputs = []
+            };
         }
 
         logger.LogDebug("Starting to run assembly {assemblyPath}.", compilation.AssemblyLocation);
         return await StartExecutionAsync(compilation, inputs, cancellationToken);
     }
 
-    private async ValueTask<(CompilationResult Compilation, List<string>? Outputs)> StartExecutionAsync(
+    private static async ValueTask<ExecutionResult> StartExecutionAsync(
         CompilationResult compilation,
         List<string>? inputs,
         CancellationToken cancellationToken = default)
@@ -44,16 +44,30 @@ public class CSharpRunner(ILogger<ICSharpRunner> logger, ICSharpCompiler compile
             cancellationToken);
 
         if (inputs is not { Count: > 0 })
-            return (compilation, [await RunAsync(compilation, cancellationToken: cancellationToken)]);
+            return await RunAsync(compilation, cancellationToken: cancellationToken);
 
         var executionOutputs = new List<string>();
         foreach (var input in inputs ?? [])
-            executionOutputs.Add(await RunAsync(compilation, input, cancellationToken));
+        {
+            var result = await RunAsync(compilation, input, cancellationToken);
+            executionOutputs.AddRange(result.Outputs ?? []);
 
-        return (compilation, executionOutputs);
+            if (result.IsRuntimeError)
+                return result with { Outputs = executionOutputs };
+        }
+
+        return new ExecutionResult
+        {
+            Compilation = compilation,
+            IsSuccess = true,
+            IsRuntimeError = false,
+            RuntimeErrorType = null,
+            Code = 0,
+            Outputs = executionOutputs
+        };
     }
 
-    private async ValueTask<string> RunAsync(
+    private static async ValueTask<ExecutionResult> RunAsync(
         CompilationResult compilation,
         string? input = default,
         CancellationToken cancellationToken = default)
@@ -72,19 +86,23 @@ public class CSharpRunner(ILogger<ICSharpRunner> logger, ICSharpCompiler compile
 
         if (string.IsNullOrEmpty(input) is false)
         {
-            await process.StandardInput.WriteLineAsync(input);
+            await process.StandardInput.WriteAsync(input);
             process.StandardInput.Close();
         }
 
         string output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
         string error = await process.StandardError.ReadToEndAsync(cancellationToken);
 
-        return output + error;  // TODO: this is very very bad.
-                                // if we are execution sequentially, then
-                                // we return the first failed execution error in Error: string
-
-
-        // we need to implement complex input where inputs have ids, it can be interger ID or array index
-        // when execution failes, we can detect which input failed
+        await process.WaitForExitAsync(cancellationToken);
+        bool HasRuntimeError() => process.ExitCode != 0 || string.IsNullOrEmpty(error) is false;
+        return new ExecutionResult
+        {
+            Compilation = compilation,
+            IsSuccess = HasRuntimeError() is false,
+            IsRuntimeError = HasRuntimeError(),
+            RuntimeErrorType = HasRuntimeError() ? ERuntimeErrorType.Runtime : null,
+            Code = process.ExitCode,
+            Outputs = [string.IsNullOrEmpty(error) ? output : error]
+        };
     }
 }

@@ -1,4 +1,4 @@
-@Host = https://localhost:5001
+@Host = http://localhost:5000
 
 POST {{Host}}/execute-single-input
 Content-Type: application/json

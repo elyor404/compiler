@@ -35,14 +35,7 @@ app.MapPost("/execute-single-input", async (
     [FromServices] ICSharpRunner runner,
     CancellationToken abortionToken = default) =>
 {
-    var (compilation, output) = await runner.ExecuteAsync(dto.Code, [dto.Input], abortionToken);
-
-    return Results.Ok(new
-    {
-        compilation.IsSuccess,
-        compilation.Errors,
-        Output = output
-    });
+    return Results.Ok(await runner.ExecuteAsync(dto.Code, [dto.Input], abortionToken));
 });
 
 app.MapPost("/execute-multiple-inputs", async (
@@ -50,17 +43,10 @@ app.MapPost("/execute-multiple-inputs", async (
     [FromServices] ICSharpRunner runner, 
     CancellationToken abortionToken = default) =>
 {
-    var (compilation, outputs) = await runner.ExecuteAsync(
+    return Results.Ok(await runner.ExecuteAsync(
         dto.Code,
         dto.Inputs,
-        abortionToken);
-
-    return Results.Ok(new
-    {
-        compilation.IsSuccess,
-        compilation.Errors,
-        Outputs = outputs
-    });
+        abortionToken));
 });
 
 app.MapPost("/execute-without-input", async (
@@ -68,14 +54,7 @@ app.MapPost("/execute-without-input", async (
     [FromServices] ICSharpRunner runner,
     CancellationToken abortionToken = default) =>
 {
-    var (compilation, outputs) = await runner.ExecuteAsync(dto.Code, [], abortionToken);
-
-    return Results.Ok(new
-    {
-        compilation.IsSuccess,
-        compilation.Errors,
-        Outputs = outputs
-    });
+    return Results.Ok(await runner.ExecuteAsync(dto.Code, [], abortionToken));
 });
 
 app.Run();
